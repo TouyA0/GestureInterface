@@ -43,20 +43,19 @@ class GestureDetector:
         for hand_landmarks in results.multi_hand_landmarks:
             hand_dict = {}
             
-            # Les 21 points de la main
+            # Utilise directement les coordonnées NORMALISÉES (0-1)
+            # sans les convertir en pixels
             for i, landmark in enumerate(hand_landmarks.landmark):
-                x = int(landmark.x * frame_width)
-                y = int(landmark.y * frame_height)
-                hand_dict[i] = (x, y)
+                # Stocke comme coordonnées normalisées
+                hand_dict[i] = (landmark.x, landmark.y)
             
-            # Extraire les points clés
             hands_data.append({
-                'thumb': hand_dict[4],      # Bout du pouce
-                'index': hand_dict[8],      # Bout de l'index
-                'middle': hand_dict[12],    # Bout du majeur
-                'ring': hand_dict[16],      # Bout de l'annulaire
-                'pinky': hand_dict[20],     # Bout du petit doigt
-                'palm': hand_dict[0],       # Paume (poignet)
+                'thumb': hand_dict[4],
+                'index': hand_dict[8],
+                'middle': hand_dict[12],
+                'ring': hand_dict[16],
+                'pinky': hand_dict[20],
+                'palm': hand_dict[0],
                 'all_points': hand_dict
             })
         
@@ -69,4 +68,4 @@ class GestureDetector:
     def is_pinch(self, hand_data):
         """Détecte si le geste 'pinch' (pouce + index rapprochés) est actif"""
         dist = self.distance(hand_data['thumb'], hand_data['index'])
-        return dist < PINCH_THRESHOLD * CAMERA_WIDTH
+        return dist < 30

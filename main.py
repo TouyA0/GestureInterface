@@ -1,5 +1,6 @@
 import sys
 import cv2
+import numpy as np
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import QTimer
@@ -7,6 +8,9 @@ from PyQt6.QtCore import QTimer
 from config import *
 from core.camera_handler import CameraHandler
 from core.gesture_detector import GestureDetector
+from core.gesture_processor import GestureProcessor
+
+from core.gesture_processor import GestureProcessor
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -15,10 +19,11 @@ class MainWindow(QMainWindow):
         # Core components
         self.camera = CameraHandler()
         self.gesture_detector = GestureDetector()
+        self.gesture_processor = GestureProcessor()
         self.camera.start()
         
         # UI
-        self.setWindowTitle("GestureInterface - Phase 1")
+        self.setWindowTitle("GestureInterface - Phase 1 - Jour 3-4")
         self.setGeometry(0, 0, CAMERA_WIDTH, CAMERA_HEIGHT)
         self.setStyleSheet("background-color: black;")
         
@@ -44,17 +49,60 @@ class MainWindow(QMainWindow):
             results, CAMERA_WIDTH, CAMERA_HEIGHT
         )
         
-        # Affiche le nombre de mains détectées
+        # Traite les gestes
+        commands = self.gesture_processor.process(hands)
+        
         if hands:
-            cv2.putText(frame, f"Mains détectées: {len(hands)}", (50, 50),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            hand = hands[0]
+            all_pts = hand['all_points']
+            frame_h, frame_w = frame.shape[:2]
+
+            # Convertis index et thumb en pixels aussi
+            index_norm_x, index_norm_y = hand['index']
+            index_pos = (int(index_norm_x * frame_w), int(index_norm_y * frame_h))
+
+            thumb_norm_x, thumb_norm_y = hand['thumb']
+            thumb_pos = (int(thumb_norm_x * frame_w), int(thumb_norm_y * frame_h))
+            
+            # Affiche aussi le point 8 en GROS ROUGE
+            cv2.circle(frame, index_pos, 20, (0, 0, 255), 3)
+            cv2.putText(frame, "POINT 8", (index_pos[0]+30, index_pos[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            
+            # Affiche un GROS cercle vert directement sur l'index
+            cv2.circle(frame, index_pos, 15, (0, 255, 0), 2)
+            cv2.circle(frame, index_pos, 3, (0, 255, 0), -1)
+            cv2.putText(frame, "INDEX", (index_pos[0]+20, index_pos[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            # Affiche le pouce en rouge
+            cv2.circle(frame, thumb_pos, 12, (0, 0, 255), 2)
+            cv2.putText(frame, "THUMB", (thumb_pos[0]+20, thumb_pos[1]), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            # Calcule la distance pouce-index
+            dist = np.sqrt((thumb_pos[0] - index_pos[0])**2 + 
+                        (thumb_pos[1] - index_pos[1])**2)
+            
+            # Affiche la distance
+            cv2.putText(frame, f"Distance: {int(dist)}", (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Détecte le pinch
+            if dist < 40:
+                cv2.putText(frame, "PINCH DETECTED!", (50, 100),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                cv2.rectangle(frame, 
+                            (index_pos[0]-30, index_pos[1]-30),
+                            (index_pos[0]+30, index_pos[1]+30),
+                            (0, 0, 255), 2)
         
         # Convertir et afficher
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_frame.shape
         bytes_per_line = ch * w
         qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, 
-                         QImage.Format.Format_RGB888)
+                        QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qt_image)
         self.camera_label.setPixmap(pixmap)
     
