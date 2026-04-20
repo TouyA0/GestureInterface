@@ -1,0 +1,10 @@
+opencv-python==4.8.1.78
+mediapipe==0.10.13
+numpy==1.26.4
+PyQt6==6.6.1
+PyQt6-sip==13.6.0
+pyautogui==0.9.53
+pygetwindow==0.0.9
+python-dotenv==1.0.0
+pillow==10.0.0
+scipy==1.11.3
