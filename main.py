@@ -20,19 +20,28 @@ class GestureApp(QWidget):
         self.camera.start()
 
         self.setWindowTitle("GestureInterface")
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        screen_geom = QApplication.primaryScreen().geometry()
-        self.setGeometry(screen_geom)
-        self.show()
+        self.showFullScreen()
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(int(1000 / REFRESH_RATE))
 
+    def _crop_black_bars(self, frame, threshold=10):
+        """Rogne les bandes noires (pillarbox/letterbox) ajoutées par la source vidéo."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        col_nonblack = np.where(gray.max(axis=0) > threshold)[0]
+        row_nonblack = np.where(gray.max(axis=1) > threshold)[0]
+        if len(col_nonblack) == 0 or len(row_nonblack) == 0:
+            return frame
+        return frame[row_nonblack[0]:row_nonblack[-1] + 1,
+                     col_nonblack[0]:col_nonblack[-1] + 1]
+
     def update_frame(self):
         frame = self.camera.get_frame()
         if frame is None:
             return
+
+        frame = self._crop_black_bars(frame)
 
         results = self.gesture_detector.detect(frame)
         frame = self.gesture_detector.draw_hands(frame, results)
@@ -58,17 +67,29 @@ class GestureApp(QWidget):
                 cv2.putText(frame, "PINCH!", (50, 100),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
+        # Cover : resize pour remplir exactement le widget sans bande noire
+        win_w, win_h = self.width(), self.height()
+        if win_w <= 0 or win_h <= 0:
+            return
         fh, fw = frame.shape[:2]
-        rgb = np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        scale = max(win_w / fw, win_h / fh)
+        sw, sh = int(fw * scale), int(fh * scale)
+        scaled = cv2.resize(frame, (sw, sh), interpolation=cv2.INTER_LINEAR)
+        x0 = (sw - win_w) // 2
+        y0 = (sh - win_h) // 2
+        cover = scaled[y0:y0 + win_h, x0:x0 + win_w]
+
+        rgb = np.ascontiguousarray(cv2.cvtColor(cover, cv2.COLOR_BGR2RGB))
         self._pixmap = QPixmap.fromImage(
-            QImage(rgb.data, fw, fh, fw * 3, QImage.Format.Format_RGB888)
+            QImage(rgb.data, win_w, win_h, win_w * 3, QImage.Format.Format_RGB888)
         )
+        self._rgb_keep = rgb  # garde une référence au buffer
         self.update()
 
     def paintEvent(self, event):
         if self._pixmap is None:
             return
-        QPainter(self).drawPixmap(self.rect(), self._pixmap)
+        QPainter(self).drawPixmap(0, 0, self._pixmap)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
